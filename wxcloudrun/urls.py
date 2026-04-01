@@ -19,11 +19,10 @@ from django.conf.urls import url
 from django.urls import path
 
 urlpatterns = (
+    path('api/order_notify/', views.order_notify, name='order_notify'),
     # 计数器接口
-    url(r'^^api/count(/)?$', views.counter),
+    #url(r'^^api/count(/)?$', views.counter),
 
     # 获取主页
-    url(r'(/)?$', views.index),
-
-    path('api/order_notify/', views.order_notify, name='order_notify'),
+    #url(r'(/)?$', views.index),
 )
