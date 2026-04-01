@@ -1,10 +1,13 @@
 import json
 import logging
-
+import os
 from django.http import JsonResponse
 from django.shortcuts import render
 from wxcloudrun.models import Counters
-
+from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 logger = logging.getLogger('log')
 
@@ -89,3 +92,50 @@ def update_count(request):
     else:
         return JsonResponse({'code': -1, 'errorMsg': 'action参数错误'},
                     json_dumps_params={'ensure_ascii': False})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def order_notify(request):
+    try:
+        data = json.loads(request.body)
+        order_items = data.get('orderItems', [])
+        timestamp = data.get('timestamp', '')
+
+        if not order_items:
+            return JsonResponse({"code": 0, "msg": "no orders"})
+
+        # 组装邮件内容
+        message = f"【新订单通知】\n时间：{timestamp}\n"
+        for idx, item in enumerate(order_items, 1):
+            store = item.get('storeName', '')
+            product = item.get('productName', '')
+            temp = item.get('temperature', '')
+            line = f"{idx}. {store} - {product}"
+            if temp:
+                line += f" ({temp})"
+            message += line + "\n"
+
+        logger.info(message)
+
+        # 发送邮件给管理员
+        admin_email = os.environ.get('ADMIN_EMAIL', '')
+        if admin_email:
+            try:
+                send_mail(
+                    subject='点餐小程序新订单通知',
+                    message=message,
+                    from_email=None,  # 使用 settings.DEFAULT_FROM_EMAIL
+                    recipient_list=[admin_email],
+                    fail_silently=False,
+                )
+                logger.info(f"邮件已发送至 {admin_email}")
+            except Exception as e:
+                logger.error(f"邮件发送失败: {e}")
+        else:
+            logger.warning("未配置 ADMIN_EMAIL，未发送邮件")
+
+        return JsonResponse({"code": 0, "msg": "success"})
+
+    except Exception as e:
+        logger.error(f"订单通知处理失败: {str(e)}")
+        return JsonResponse({"code": -1, "msg": str(e)})
